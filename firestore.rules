@@ -1,0 +1,68 @@
+rules_version = '2';
+
+// ScanFlow data model
+//   events/{eventId}                      -> owned by ownerId, shared with staff[]
+//   events/{eventId}/attendees/{id}       -> inherits access from the parent event
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function eventDoc(eventId) {
+      return get(/databases/$(database)/documents/events/$(eventId)).data;
+    }
+
+    function isOwner(eventId) {
+      return isSignedIn() && eventDoc(eventId).ownerId == request.auth.uid;
+    }
+
+    // Owner or anyone invited to scan for this event (by uid or email).
+    function isCrew(eventId) {
+      return isOwner(eventId)
+        || (isSignedIn() && request.auth.uid in eventDoc(eventId).get('staff', []))
+        || (isSignedIn() && request.auth.token.email in eventDoc(eventId).get('staffEmails', []));
+    }
+
+    match /events/{eventId} {
+      // Reading the event itself can be answered from the document in hand,
+      // which avoids an extra billed get() on every dashboard query.
+      allow read: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid
+        || request.auth.uid in resource.data.get('staff', [])
+        || request.auth.token.email in resource.data.get('staffEmails', [])
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0;
+      allow update: if isOwner(eventId)
+        && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isOwner(eventId);
+
+      // Guest-facing copy of the event, readable by anyone holding a ticket
+      // link. Carries no email addresses — see publicFields() in lib/db.js.
+      match /public/{doc} {
+        allow get: if true;
+        allow write: if isOwner(eventId);
+      }
+
+      match /attendees/{attendeeId} {
+        // A single attendee may be fetched by anyone who knows their UUID,
+        // which is how a ticket page works without an account. `get` only —
+        // listing the guest list still requires being on the crew.
+        allow get: if true;
+
+        allow read, create, delete: if isCrew(eventId);
+
+        // Door staff may only write the check-in fields. Names, emails and QR
+        // payloads stay under the owner's control.
+        allow update: if isOwner(eventId)
+          || (isCrew(eventId)
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['checkedIn', 'checkedInAt', 'checkedInBy', 'checkedInDevice']));
+      }
+    }
+  }
+}

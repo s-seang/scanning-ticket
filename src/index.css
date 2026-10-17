@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Default accent, overridden per event by <AccentScope>. "R G B" triplet. */
+    --accent: 27 110 243;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-white text-black antialiased dark:bg-black dark:text-white;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* One focus treatment everywhere, always visible for keyboard users. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-white dark:ring-offset-black;
+  }
+
+  ::selection {
+    @apply bg-accent/20;
+  }
+
+  /* Firefox/WebKit scrollbars kept quiet. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(0 0 0 / 0.18) transparent;
+  }
+  .dark * {
+    scrollbar-color: rgb(255 255 255 / 0.22) transparent;
+  }
+}
+
+@layer components {
+  .hairline {
+    @apply border-black/10 dark:border-white/15;
+  }
+
+  .surface {
+    @apply rounded-xl2 border border-black/10 bg-white shadow-card dark:border-white/15 dark:bg-white/[0.04] dark:shadow-none;
+  }
+
+  .muted {
+    @apply text-black/55 dark:text-white/55;
+  }
+
+  /* Numbers that update live shouldn't reflow the layout around them. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * html5-qrcode renders its own DOM inside the mount node. We strip its chrome
+ * and let the video fill the viewport edge to edge — no crop box, no border.
+ */
+#scanflow-camera {
+  @apply h-full w-full overflow-hidden;
+  border: 0 !important;
+}
+
+#scanflow-camera video {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover;
+  display: block;
+  /* Front-facing laptop cams read as a mirror to the person standing there. */
+  transform: scaleX(var(--cam-flip, 1));
+}
+
+#scanflow-camera img,
+#scanflow-camera #qr-shaded-region,
+#scanflow-camera__dashboard,
+#scanflow-camera__header_message,
+#scanflow-camera__scan_region img {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
